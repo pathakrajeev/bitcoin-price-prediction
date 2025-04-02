@@ -1,21 +1,35 @@
-import pandas as pd
+import pandas as pd 
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-import yfinance as yf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
-import os
 import streamlit as st
+from textblob import TextBlob  # For sentiment analysis
 
-# Define the path to the default file (hardcoded)
+# Define the default file path
 default_file_path = 'bitcoin_price_Training - Training.csv'
 
-# Load dataset from the hardcoded file
-train_data = pd.read_csv(default_file_path)
+# Streamlit layout
+st.title('Bitcoin Price Prediction')
+
+# Display the welcome message
+st.markdown("### Welcome to the Bitcoin Prediction page! Please select the training data. If no selection is made, the default training dataset will be used.")
+
+# Option for the user to upload a file or use the default one
+uploaded_file = st.file_uploader("Choose a file to upload", type=["csv"])
+
+# If no file is uploaded, use the default file
+if uploaded_file is None:
+    st.warning("No file uploaded, using default dataset.")
+    train_data = pd.read_csv(default_file_path)
+else:
+    train_data = pd.read_csv(uploaded_file)
+
+# Load test data (you can also upload it the same way as the training file if needed)
 test_data = pd.read_csv('bitcoin_price_1week_Test - Test.csv')
 
 # Convert the 'Date' column to datetime format
@@ -62,87 +76,129 @@ scaler = MinMaxScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 
-# Train Random Forest with Hyperparameter Tuning
-rf_param_grid = {'n_estimators': [50, 100, 200], 'max_depth': [None, 10, 20], 'min_samples_split': [2, 5, 10]}
-rf_grid_search = GridSearchCV(RandomForestRegressor(random_state=42), rf_param_grid, cv=3, scoring='neg_mean_squared_error')
-rf_grid_search.fit(X_train_scaled, y_train)
-rf_best_model = rf_grid_search.best_estimator_
-rf_pred = rf_best_model.predict(X_test_scaled)
+# Display top 10 rows of training data
+st.subheader("Top 10 Rows of the Training Data")
+st.write(train_data.head(10))
 
-# Train Gradient Boosting with Hyperparameter Tuning
-gb_param_grid = {'n_estimators': [50, 100, 200], 'learning_rate': [0.01, 0.1, 0.2], 'max_depth': [3, 5, 7]}
-gb_grid_search = GridSearchCV(GradientBoostingRegressor(random_state=42), gb_param_grid, cv=3, scoring='neg_mean_squared_error')
-gb_grid_search.fit(X_train_scaled, y_train)
-gb_best_model = gb_grid_search.best_estimator_
-gb_pred = gb_best_model.predict(X_test_scaled)
+# Define and train models only after Submit button is clicked
+if st.button("Submit"):
 
-# Calculate errors
-rf_mse = mean_squared_error(y_test, rf_pred)
-gb_mse = mean_squared_error(y_test, gb_pred)
-st.write(f'Random Forest Best Parameters: {rf_grid_search.best_params_}')
-st.write(f'Random Forest Mean Squared Error: {rf_mse}')
-st.write(f'Gradient Boosting Best Parameters: {gb_grid_search.best_params_}')
-st.write(f'Gradient Boosting Mean Squared Error: {gb_mse}')
+    # Create progress bar
+    progress_bar = st.progress(0)
 
-# LSTM Model Preparation
-X_train_lstm = np.reshape(X_train_scaled, (X_train_scaled.shape[0], X_train_scaled.shape[1], 1))
-X_test_lstm = np.reshape(X_test_scaled, (X_test_scaled.shape[0], X_test_scaled.shape[1], 1))
+    # Train Random Forest with Hyperparameter Tuning
+    st.write("Training Random Forest Model...")
+    rf_param_grid = {'n_estimators': [50, 100, 200], 'max_depth': [None, 10, 20], 'min_samples_split': [2, 5, 10]}
+    rf_grid_search = GridSearchCV(RandomForestRegressor(random_state=42), rf_param_grid, cv=3, scoring='neg_mean_squared_error')
+    rf_grid_search.fit(X_train_scaled, y_train)
+    rf_best_model = rf_grid_search.best_estimator_
+    rf_pred = rf_best_model.predict(X_test_scaled)
 
-# Build LSTM model
-model = Sequential([
-    LSTM(units=50, return_sequences=True, input_shape=(X_train_lstm.shape[1], 1)),
-    Dropout(0.2),
-    LSTM(units=50, return_sequences=False),
-    Dropout(0.2),
-    Dense(units=1)
-])
+    # Update progress bar
+    progress_bar.progress(33)
 
-model.compile(optimizer='adam', loss='mean_squared_error')
-model.fit(X_train_lstm, y_train, epochs=20, batch_size=32)
+    # Train Gradient Boosting with Hyperparameter Tuning
+    st.write("Training Gradient Boosting Model...")
+    gb_param_grid = {'n_estimators': [50, 100, 200], 'learning_rate': [0.01, 0.1, 0.2], 'max_depth': [3, 5, 7]}
+    gb_grid_search = GridSearchCV(GradientBoostingRegressor(random_state=42), gb_param_grid, cv=3, scoring='neg_mean_squared_error')
+    gb_grid_search.fit(X_train_scaled, y_train)
+    gb_best_model = gb_grid_search.best_estimator_
+    gb_pred = gb_best_model.predict(X_test_scaled)
 
-y_pred_lstm = model.predict(X_test_lstm)
-st.write("LSTM Model MAE:", mean_absolute_error(y_test, y_pred_lstm))
+    # Update progress bar
+    progress_bar.progress(66)
 
-# Visualizations with Streamlit
-st.subheader("Random Forest Predictions")
-plt.figure(figsize=(12, 6))
-plt.plot(y_test, label='Actual Prices', color='blue')
-plt.plot(rf_pred, label='Random Forest Predicted Prices', color='green', linestyle='--')
-plt.title('Random Forest Bitcoin Price Prediction')
-plt.xlabel('Time')
-plt.ylabel('Price (USD)')
-plt.legend()
-st.pyplot()
+    # LSTM Model Preparation
+    st.write("Training LSTM Model...")
+    X_train_lstm = np.reshape(X_train_scaled, (X_train_scaled.shape[0], X_train_scaled.shape[1], 1))
+    X_test_lstm = np.reshape(X_test_scaled, (X_test_scaled.shape[0], X_test_scaled.shape[1], 1))
 
-st.subheader("Gradient Boosting Predictions")
-plt.figure(figsize=(12, 6))
-plt.plot(y_test, label='Actual Prices', color='blue')
-plt.plot(gb_pred, label='Gradient Boosting Predicted Prices', color='orange', linestyle='-.')
-plt.title('Gradient Boosting Bitcoin Price Prediction')
-plt.xlabel('Time')
-plt.ylabel('Price (USD)')
-plt.legend()
-st.pyplot()
+    # Build LSTM model
+    model = Sequential([
+        LSTM(units=50, return_sequences=True, input_shape=(X_train_lstm.shape[1], 1)),
+        Dropout(0.2),
+        LSTM(units=50, return_sequences=False),
+        Dropout(0.2),
+        Dense(units=1)
+    ])
 
-st.subheader("LSTM Predictions")
-plt.figure(figsize=(12, 6))
-plt.plot(y_test, label='Actual Prices', color='blue')
-plt.plot(y_pred_lstm, label='LSTM Predicted Prices', color='red', linestyle=':')
-plt.title('LSTM Bitcoin Price Prediction')
-plt.xlabel('Time')
-plt.ylabel('Price (USD)')
-plt.legend()
-st.pyplot()
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    model.fit(X_train_lstm, y_train, epochs=20, batch_size=32)
 
-# Visualize all predictions in a single plot
-st.subheader("Model Comparison: All Predictions")
-plt.figure(figsize=(12, 6))
-plt.plot(y_test, label='Actual Prices', color='blue')
-plt.plot(rf_pred, label='Random Forest Predicted Prices', color='green')
-plt.plot(gb_pred, label='Gradient Boosting Predicted Prices', color='orange')
-plt.plot(y_pred_lstm, label='LSTM Predicted Prices', color='red')
-plt.title('Bitcoin Price Prediction with Hyperparameter Tuning and LSTM')
-plt.xlabel('Time')
-plt.ylabel('Price (USD)')
-plt.legend()
-st.pyplot()
+    y_pred_lstm = model.predict(X_test_lstm)
+    st.write("LSTM Model MAE:", mean_absolute_error(y_test, y_pred_lstm))
+
+    # Update progress bar
+    progress_bar.progress(100)
+
+    # Visualize Random Forest Predictions
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(y_test, label='Actual Prices', color='blue', linewidth=2)
+    ax.plot(rf_pred, label='Random Forest Predicted Prices', color='green', linestyle='--', linewidth=2)
+    ax.set_title('Random Forest Bitcoin Price Prediction')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # Visualize Gradient Boosting Predictions
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(y_test, label='Actual Prices', color='blue', linewidth=2)
+    ax.plot(gb_pred, label='Gradient Boosting Predicted Prices', color='orange', linestyle='-.', linewidth=2)
+    ax.set_title('Gradient Boosting Bitcoin Price Prediction')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # Visualize LSTM Predictions
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(y_test, label='Actual Prices', color='blue', linewidth=2)
+    ax.plot(y_pred_lstm, label='LSTM Predicted Prices', color='red', linestyle=':', linewidth=2)
+    ax.set_title('LSTM Bitcoin Price Prediction')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # Visualizing all model predictions together
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(y_test, label='Actual Prices', color='blue', linewidth=2)
+    ax.plot(rf_pred, label='Random Forest Predicted Prices', color='green', linestyle='--', linewidth=2)
+    ax.plot(gb_pred, label='Gradient Boosting Predicted Prices', color='orange', linestyle='-.', linewidth=2)
+    ax.plot(y_pred_lstm, label='LSTM Predicted Prices', color='red', linestyle=':', linewidth=2)
+    ax.set_title('Bitcoin Price Prediction with Random Forest, Gradient Boosting, and LSTM')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # High/Low Price Visualization
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(train_data['High'], label='High Prices', color='green', linestyle='-', linewidth=2)
+    ax.plot(train_data['Low'], label='Low Prices', color='red', linestyle='-', linewidth=2)
+    ax.set_title('Bitcoin High and Low Prices')
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # Sentiment Analysis: Assuming we have a list of Bitcoin-related news headlines
+    # For example, these could be fetched from an API or manually provided
+    example_news = [
+        "Bitcoin hits new all-time high, investors are excited",
+        "Bitcoin prices crash, market sentiment turns negative",
+        "Bitcoin adoption increasing worldwide, bullish outlook"
+    ]
+    
+    # Calculate sentiment polarity for each news item
+    sentiments = []
+    for news in example_news:
+        sentiment = TextBlob(news).sentiment.polarity
+        sentiments.append(sentiment)
+
+    # Display sentiment analysis results
+    sentiment_df = pd.DataFrame({'News': example_news, 'Sentiment Polarity': sentiments})
+    st.subheader("Sentiment Analysis on Bitcoin News Headlines")
+    st.write(sentiment_df)
+
