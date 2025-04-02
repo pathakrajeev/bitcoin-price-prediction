@@ -202,3 +202,12 @@ if st.button("Submit"):
     st.subheader("Sentiment Analysis on Bitcoin News Headlines")
     st.write(sentiment_df)
 
+    # Display Prediction
+    st.subheader("Bitcoin Price Prediction for the Next Week")
+    future_prediction_rf = rf_best_model.predict(scaler.transform(train_data[features].tail(1)))
+    future_prediction_gb = gb_best_model.predict(scaler.transform(train_data[features].tail(1)))
+    future_prediction_lstm = model.predict(np.reshape(scaler.transform(train_data[features].tail(1)), (1, train_data[features].shape[1], 1)))
+
+    st.write(f"Random Forest Prediction: {future_prediction_rf[0]:.2f} USD")
+    st.write(f"Gradient Boosting Prediction: {future_prediction_gb[0]:.2f} USD")
+    st.write(f"LSTM Prediction: {future_prediction_lstm[0][0]:.2f} USD")
