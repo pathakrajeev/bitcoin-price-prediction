@@ -196,3 +196,85 @@ if st.button("Submit"):
     st.write(f"Random Forest Prediction: {prediction_rf[0]:.2f} USD")
     st.write(f"Gradient Boosting Prediction: {prediction_gb[0]:.2f} USD")
     st.write(f"LSTM Prediction: {prediction_lstm[0][0]:.2f} USD")
+    
+    # ----------------------- Confidence Intervals for Models -----------------------
+    st.subheader("Confidence Intervals for Predictions")
+    
+    def bootstrap_confidence_interval(model, X, num_samples=100, alpha=0.05):
+        predictions = []
+        for _ in range(num_samples):
+            sample_indices = np.random.choice(len(X), len(X), replace=True)
+            sample_X = X[sample_indices]
+            predictions.append(model.predict(sample_X))
+        predictions = np.array(predictions)
+        lower_bound = np.percentile(predictions, (alpha/2) * 100, axis=0)
+        upper_bound = np.percentile(predictions, (1 - alpha/2) * 100, axis=0)
+        return lower_bound, upper_bound
+
+    rf_lower, rf_upper = bootstrap_confidence_interval(rf_best_model, X_test_scaled)
+    gb_lower, gb_upper = bootstrap_confidence_interval(gb_best_model, X_test_scaled)
+
+    # Displaying Random Forest Confidence Interval
+    st.write("Random Forest Confidence Interval")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(dates_test, y_test, label='Actual Prices', color='blue', linewidth=2)
+    ax.plot(dates_test, rf_pred, label='Predicted Prices (RF)', color='green', linestyle='--', linewidth=2)
+    ax.fill_between(dates_test, rf_lower, rf_upper, color='green', alpha=0.2, label='Confidence Interval')
+    ax.set_title('Random Forest Confidence Interval')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # Displaying Gradient Boosting Confidence Interval
+    st.write("Gradient Boosting Confidence Interval")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(dates_test, y_test, label='Actual Prices', color='blue', linewidth=2)
+    ax.plot(dates_test, gb_pred, label='Predicted Prices (GB)', color='orange', linestyle='-.', linewidth=2)
+    ax.fill_between(dates_test, gb_lower, gb_upper, color='orange', alpha=0.2, label='Confidence Interval')
+    ax.set_title('Gradient Boosting Confidence Interval')
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Price (USD)')
+    ax.legend()
+    st.pyplot(fig)
+
+    # ----------------------- Interactive Feature Adjustment -----------------------
+    st.subheader("Interactive Feature Adjustment for Scenario Simulation")
+    rsi_slider = st.slider("RSI", min_value=0, max_value=100, value=50)
+    macd_slider = st.slider("MACD", min_value=-5.0, max_value=5.0, value=0.0)
+    sentiment_slider = st.slider("Sentiment Polarity", min_value=-1.0, max_value=1.0, value=0.0)
+
+    scenario_features = scaler.transform([[0, 0, 0, 0, rsi_slider, 0, 0, macd_slider, 0]])
+    rf_scenario_pred = rf_best_model.predict(scenario_features)
+    gb_scenario_pred = gb_best_model.predict(scenario_features)
+
+    st.write(f"Random Forest Prediction for Adjusted Scenario: {rf_scenario_pred[0]:.2f} USD")
+    st.write(f"Gradient Boosting Prediction for Adjusted Scenario: {gb_scenario_pred[0]:.2f} USD")
+
+    # ----------------------- Sensitivity Analysis for Sentiment -----------------------
+    st.subheader("Sensitivity Analysis: Forecasting Based on Sentiment Trends")
+    sentiment_range = np.linspace(-1.0, 1.0, 20)
+    sensitivity_analysis = []
+
+    for sentiment in sentiment_range:
+        adjusted_features = scaler.transform([[0, 0, 0, 0, 50, 0, 0, 0, sentiment]])
+        rf_sent_pred = rf_best_model.predict(adjusted_features)
+        gb_sent_pred = gb_best_model.predict(adjusted_features)
+        sensitivity_analysis.append({'Sentiment': sentiment, 
+                                     'Random Forest Prediction': rf_sent_pred[0], 
+                                     'Gradient Boosting Prediction': gb_sent_pred[0]})
+
+    sensitivity_df = pd.DataFrame(sensitivity_analysis)
+    st.write("Sensitivity Analysis Data")
+    st.write(sensitivity_df)
+
+    # Plotting Sensitivity to Sentiment Trends
+    st.write("Sensitivity Analysis Visualization")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(sensitivity_df['Sentiment'], sensitivity_df['Random Forest Prediction'], label='Random Forest', color='green')
+    ax.plot(sensitivity_df['Sentiment'], sensitivity_df['Gradient Boosting Prediction'], label='Gradient Boosting', color='orange')
+    ax.set_title("Model Predictions vs. Sentiment Trends")
+    ax.set_xlabel("Sentiment Polarity")
+    ax.set_ylabel("Bitcoin Price Prediction (USD)")
+    ax.legend()
+    st.pyplot(fig)
