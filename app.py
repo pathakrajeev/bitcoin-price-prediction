@@ -10,6 +10,33 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout
 import streamlit as st
 from textblob import TextBlob  # For sentiment analysis
 
+st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500&display=swap');
+
+        .custom-header {
+            background-color: #1c1c1c;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-family: 'Montserrat', sans-serif;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+        }
+        .custom-header img {
+            height: 50px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+    </style>
+    <div class="custom-header">
+        <img src="https://img.icons8.com/color/48/bitcoin.png" alt="Bitcoin Logo">
+        <span style="font-size: 24px;">Bitcoin Price Prediction Dashboard</span><br>
+        <span style="font-size: 14px; color: #ccc;">Rajeev Ranjan & Samunder Singh</span>
+    </div>
+    <br>
+""", unsafe_allow_html=True)
+
 # Define the default file path for training data
 default_file_path = 'bitcoin_price_Training - Training.csv'
 
@@ -278,3 +305,11 @@ if st.button("Submit"):
     ax.set_ylabel("Bitcoin Price Prediction (USD)")
     ax.legend()
     st.pyplot(fig)
+    st.markdown("""
+    <br><br>
+    <hr>
+    <center>
+        <small>Created with ❤️ using Streamlit | © 2025 Rajeev and Samunder</small>
+    </center>
+""", unsafe_allow_html=True)
+
